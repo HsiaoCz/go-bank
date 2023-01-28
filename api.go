@@ -11,8 +11,8 @@ import (
 
 // 将信息以JSON格式编码到响应体里
 func WriteJSON(w http.ResponseWriter, status int, v any) error {
+	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(status)
-	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(v)
 }
 
@@ -36,11 +36,13 @@ func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 
 type APIServer struct {
 	listenAddr string
+	store      Storage
 }
 
-func NewApiServer(listenAddr string) *APIServer {
+func NewApiServer(listenAddr string, store Storage) *APIServer {
 	return &APIServer{
 		listenAddr: listenAddr,
+		store:      store,
 	}
 }
 
@@ -52,6 +54,8 @@ func (s *APIServer) Run() {
 	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
 	// 通过id获取account
 	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleGetAccount))
+	// 创建account
+	router.HandleFunc("/create/account", makeHTTPHandleFunc(s.handleCreateAccount))
 
 	log.Println("Json API server running on port:", s.listenAddr)
 
@@ -78,7 +82,17 @@ func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) err
 	return WriteJSON(w, http.StatusOK, &Account{})
 }
 func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	createAccountReq := new(CreateAccountRequest)
+	if err := json.NewDecoder(r.Body).Decode(createAccountReq); err != nil {
+		return err
+	}
+	account := NewAccount(createAccountReq.FirstName, createAccountReq.LastName)
+
+	if err := s.store.CreateAccount(account); err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, createAccountReq)
 }
 
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
