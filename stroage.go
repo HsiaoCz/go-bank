@@ -11,6 +11,7 @@ type Storage interface {
 	CreateAccount(*Account) error
 	DeleteAccount(int) error
 	UpdateAccount(*Account) error
+	GetAccounts() ([]*Account, error)
 	GetAccountByID(int) (*Account, error)
 }
 
@@ -18,8 +19,8 @@ type MysqlStore struct {
 	db *sql.DB
 }
 
-func NewPostgresStore() (*MysqlStore, error) {
-	connStr := "root:root@tcp(127.0.0.1:3306)/go-bank"
+func NewMysqlStore() (*MysqlStore, error) {
+	connStr := "root:root@tcp(127.0.0.1:3306)/go-bank?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := sql.Open("mysql", connStr)
 	if err != nil {
 		return nil, err
@@ -31,8 +32,8 @@ func NewPostgresStore() (*MysqlStore, error) {
 }
 
 func (s *MysqlStore) CreateAccount(account *Account) error {
-	sqlStr := `insert into account(first_name,last_name) values (?,?)`
-	rest, err := s.db.Exec(sqlStr, account.FirstName, account.LastName)
+	sqlStr := `insert into account(first_name,last_name,number,balance,created_at) values (?,?,?,?,?)`
+	rest, err := s.db.Exec(sqlStr, account.FirstName, account.LastName, account.Number, account.Balance, account.CreatedAt)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,4 +52,22 @@ func (s *MysqlStore) DeleteAccount(id int) error {
 }
 func (s *MysqlStore) GetAccountByID(id int) (*Account, error) {
 	return nil, nil
+}
+func (s *MysqlStore) GetAccounts() ([]*Account, error) {
+	sqlStr := `select id,first_name,last_name,number,balance,created_at from account where id>?`
+	res, err := s.db.Query(sqlStr, 0)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Close()
+	account := make([]*Account, 0)
+	for res.Next() {
+		acc := Account{}
+		err = res.Scan(&acc.ID, &acc.FirstName, &acc.LastName, &acc.Number, &acc.Balance, &acc.CreatedAt)
+		if err != nil {
+			log.Fatal(err)
+		}
+		account = append(account, &acc)
+	}
+	return account, nil
 }
